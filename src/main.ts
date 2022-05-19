@@ -61,6 +61,10 @@ async function run() {
             )
         }
 
+        const cacheEnabled = (core.getInput("cache") === "enabled")
+            && tag !== "latest"
+            && tag !== "";
+
         const [owner, project] = repo.split("/")
 
         let osMatch : string[] = []
@@ -116,7 +120,7 @@ async function run() {
 
         // Look in the cache first.
         let cacheKey = cachePrimaryKey(toolInfo);
-        if (cacheKey !== undefined) {
+        if (cacheEnabled && cacheKey !== undefined) {
             let ok = await cache.restoreCache([dest], cacheKey);
             if (ok !== undefined) {
                 core.info(`Found ${project} in the cache: ${dest}`)
@@ -162,7 +166,7 @@ async function run() {
         const binPath = await tc.downloadTool(url);
         await extractFn(binPath, dest);
 
-        if (cacheKey !== undefined) {
+        if (cacheEnabled && cacheKey !== undefined) {
             await cache.saveCache([dest], cacheKey);
         }
 
