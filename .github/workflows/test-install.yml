@@ -18,7 +18,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ${{ env.RUNNER_TOOL_CACHE }}/pulumictl/0.0.31
+            /opt/hostedtoolcache/pulumictl/0.0.31
           key: pulumictl-0.0.31
       - name: Install pulumictl
         uses: t0yv0/action-install-gh-release@v1.7.0
