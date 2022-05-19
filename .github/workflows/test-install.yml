@@ -14,10 +14,16 @@ jobs:
   test-install:
     runs-on: ubuntu-latest
     steps:
+      - name: Cache pulumictl
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.RUNNER_TOOL_CACHE }}/pulumictl/0.0.31
+          key: pulumictl-0.0.31
       - name: Install pulumictl
         uses: t0yv0/action-install-gh-release@v1.7.0
         with:
           repo: pulumi/pulumictl
           tag: v0.0.31
       - run: |
-          pulumictl get version
+          pulumictl --help
