@@ -1,10 +1,21 @@
+import * as os from "os";
+import * as path from "path";
+
+import * as cache from "@actions/cache";
 import * as core from "@actions/core";
 import * as tc from "@actions/tool-cache";
 import { GitHub, getOctokitOptions} from "@actions/github/lib/utils";
-import * as os from "os";
 import { throttling } from "@octokit/plugin-throttling";
 
 const ThrottlingOctokit = GitHub.plugin(throttling);
+
+interface ToolInfo {
+    owner: string;
+    project: string;
+    tag: string;
+    osPlatform: string;
+    osArch: string;
+}
 
 async function run() {
     try {
@@ -94,13 +105,22 @@ async function run() {
         core.info(`==> System reported arch: ${os.arch()}`)
         core.info(`==> Using arch: ${osArch}`)
 
-        // For specific versions, that is unless we are installing
-        // latest, check the cache first.
-        if (tag !== "latest") {
-            let toolPath = tc.find(project, tag, `${osPlatform}-${osArch}`);
-            if (toolPath !== "") {
-                core.info(`Found ${project} in the tool cache: ${toolPath}`)
-                core.addPath(toolPath);
+        let toolInfo: ToolInfo = {
+            owner: owner,
+            project: project,
+            tag: tag,
+            osArch: osArch,
+            osPlatform: osPlatform
+        };
+        let dest = toolPath(toolInfo);
+
+        // Look in the cache first.
+        let cacheKey = cachePrimaryKey(toolInfo);
+        if (cacheKey !== undefined) {
+            let ok = await cache.restoreCache([dest], cacheKey);
+            if (ok !== undefined) {
+                core.info(`Found ${project} in the cache: ${dest}`)
+                core.addPath(dest);
                 return;
             }
         }
@@ -140,18 +160,14 @@ async function run() {
 
         core.info(`Downloading ${project} from ${url}`)
         const binPath = await tc.downloadTool(url);
-        const extractedPath = await extractFn(binPath);
+        await extractFn(binPath, dest);
 
-        // For specific versions, that is unless we are installing
-        // latest, cache the extracted tool path.
-        if (tag !== "latest") {
-            let finalPath = await tc.cacheDir(extractedPath, project, tag, `${osPlatform}-${osArch}`);
-            core.addPath(finalPath);
-            core.info(`Successfully extracted ${project} to ${finalPath}`)
-        } else {
-            core.addPath(extractedPath);
-            core.info(`Successfully extracted ${project} to ${extractedPath}`)
+        if (cacheKey !== undefined) {
+            await cache.saveCache([dest], cacheKey);
         }
+
+        core.addPath(dest);
+        core.info(`Successfully extracted ${project} to ${dest}`)
     } catch (error) {
         if (error instanceof Error) {
             core.setFailed(error.message);
@@ -159,6 +175,29 @@ async function run() {
             core.setFailed("catastrophic failure, please file an issue")
         }
     }
+}
+
+function cachePrimaryKey(info: ToolInfo): string|undefined {
+    // Currently not caching "latest" verisons of the tool.
+    if (info.tag === "latest") {
+        return undefined;
+    }
+    return "action-install-gh-release/" +
+        `${info.owner}/${info.project}/${info.tag}/${info.osPlatform}-${info.osArch}`;
+}
+
+function toolPath(info: ToolInfo): string {
+    return path.join(getCacheDirectory(),
+                     info.owner, info.project, info.tag,
+                     `${info.osPlatform}-${info.osArch}`);
+}
+
+function getCacheDirectory() {
+    const cacheDirectory = process.env['RUNNER_TOOL_CACHE'] || '';
+    if (cacheDirectory === '') {
+        core.warning('Expected RUNNER_TOOL_CACHE to be defined');
+    }
+    return cacheDirectory;
 }
 
 function getExtractFn(assetName: any) {
