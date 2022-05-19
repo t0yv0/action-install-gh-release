@@ -61,7 +61,7 @@ async function run() {
             )
         }
 
-        const cacheEnabled = (core.getInput("cache") === "enabled")
+        const cacheEnabled = (core.getInput("cache") === "enable")
             && tag !== "latest"
             && tag !== "";
 
