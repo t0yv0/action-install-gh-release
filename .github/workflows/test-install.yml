@@ -19,5 +19,6 @@ jobs:
         with:
           repo: pulumi/pulumictl
           tag: v0.0.31
+          cache: enable
       - run: |
           pulumictl --help
